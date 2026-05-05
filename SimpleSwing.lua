@@ -1,5 +1,47 @@
--- SimpleSwing PARRY HASTE TEST BUILD
--- Adds basic parry haste handling (approximate)
+-- SimpleSwing
+
+if not SimpleSwingDB then SimpleSwingDB = {} end
+
+SLASH_SIMPLESWING1 = "/ss"
+SLASH_SIMPLESWING2 = "/simpleswing"
+
+SlashCmdList["SIMPLESWING"] = function(msg)
+    msg = string.lower(msg or "")
+
+    if msg == "lock" then
+        SimpleSwingDB.locked = true
+        if SimpleSwingFrame then SimpleSwingFrame:EnableMouse(false) end
+        print("SimpleSwing: locked")
+
+    elseif msg == "unlock" then
+        SimpleSwingDB.locked = false
+        if SimpleSwingFrame then SimpleSwingFrame:EnableMouse(true) end
+        print("SimpleSwing: unlocked")
+
+    elseif string.match(msg,"^width") then
+        local w = tonumber(string.match(msg, "width (%d+)"))
+        if w and SimpleSwingFrame then
+            SimpleSwingDB.width = w
+            SimpleSwingFrame:SetWidth(w)
+            print("SimpleSwing width:", w)
+        else
+            print("Usage: /ss width <number>")
+        end
+
+    elseif string.match(msg,"^height") then
+        local h = tonumber(string.match(msg, "height (%d+)"))
+        if h and SimpleSwingFrame then
+            SimpleSwingDB.height = h
+            SimpleSwingFrame:SetHeight(h)
+            print("SimpleSwing height:", h)
+        else
+            print("Usage: /ss height <number>")
+        end
+
+    else
+        print("/ss lock | unlock | width <n> | height <n>")
+    end
+end
 
 local SS = CreateFrame("Frame", "SimpleSwingFrame", UIParent)
 
@@ -13,7 +55,6 @@ local defaults = {
 }
 
 local function InitDB()
-    if not SimpleSwingDB then SimpleSwingDB = {} end
     for k,v in pairs(defaults) do
         if SimpleSwingDB[k] == nil then
             SimpleSwingDB[k] = v
@@ -70,7 +111,7 @@ SS:SetScript("OnEvent", function(self,event,...)
         playerGUID = UnitGUID("player")
         UpdateSpeed()
 
-        print("SimpleSwing PARRY TEST LOADED")
+        print("SimpleSwing loaded")
         return
     end
 
@@ -83,12 +124,8 @@ SS:SetScript("OnEvent", function(self,event,...)
     end
 
     if event == "COMBAT_LOG_EVENT_UNFILTERED" then
-        local timestamp, subevent,
-              sourceGUID, sourceName,
-              sourceFlags,
-              destGUID, destName,
-              destFlags,
-              missType = ...
+        local _, subevent, sourceGUID,
+              _, _, _, destGUID, _, _, missType = ...
 
         if sourceGUID == playerGUID then
             if subevent == "SWING_DAMAGE" or subevent == "SWING_MISSED" then
@@ -98,7 +135,7 @@ SS:SetScript("OnEvent", function(self,event,...)
         end
 
         if destGUID == playerGUID and subevent == "SWING_MISSED" and missType == "PARRY" then
-            if SS.swinging and SS.timer > 0 then
+            if SS.swinging and SS.timer > 0.3 then
                 SS.timer = SS.timer * 0.6
             end
         end
@@ -156,27 +193,3 @@ SS:SetScript("OnDragStop", function(self)
     SimpleSwingDB.x = x
     SimpleSwingDB.y = y
 end)
-
-SLASH_SIMPLESWING1 = "/ss"
-SlashCmdList["SIMPLESWING"] = function(msg)
-    msg = string.lower(msg or "")
-
-    if msg == "lock" then
-        SimpleSwingDB.locked = true
-        SS:EnableMouse(false)
-
-    elseif msg == "unlock" then
-        SimpleSwingDB.locked = false
-        SS:EnableMouse(true)
-
-    elseif string.match(msg,"^size") then
-        local w,h = string.match(msg,"size (%d+) (%d+)")
-        if w and h then
-            w = tonumber(w)
-            h = tonumber(h)
-            SimpleSwingDB.width = w
-            SimpleSwingDB.height = h
-            SS:SetSize(w,h)
-        end
-    end
-end
