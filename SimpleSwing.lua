@@ -1,5 +1,6 @@
 -- SimpleSwing
 
+
 if not SimpleSwingDB then SimpleSwingDB = {} end
 
 SLASH_SIMPLESWING1 = "/ss"
@@ -23,9 +24,7 @@ SlashCmdList["SIMPLESWING"] = function(msg)
         if w and SimpleSwingFrame then
             SimpleSwingDB.width = w
             SimpleSwingFrame:SetWidth(w)
-            print("SimpleSwing width:", w)
-        else
-            print("Usage: /ss width <number>")
+            print("Width:", w)
         end
 
     elseif string.match(msg,"^height") then
@@ -33,13 +32,33 @@ SlashCmdList["SIMPLESWING"] = function(msg)
         if h and SimpleSwingFrame then
             SimpleSwingDB.height = h
             SimpleSwingFrame:SetHeight(h)
-            print("SimpleSwing height:", h)
-        else
-            print("Usage: /ss height <number>")
+            print("Height:", h)
         end
 
+    elseif string.match(msg,"^ms") then
+        local ms = tonumber(string.match(msg, "ms (%d+)"))
+        if ms then
+            SimpleSwingDB.ms = ms
+            print("Latency:", ms, "ms")
+        end
+
+    elseif string.match(msg,"^react") then
+        local r = tonumber(string.match(msg, "react (%d+)"))
+        if r then
+            SimpleSwingDB.react = r
+            print("Reaction:", r, "ms")
+        end
+
+    elseif msg == "color on" then
+        SimpleSwingDB.colors = true
+        print("Colors: ON")
+
+    elseif msg == "color off" then
+        SimpleSwingDB.colors = false
+        print("Colors: OFF")
+
     else
-        print("/ss lock | unlock | width <n> | height <n>")
+        print("/ss lock | unlock | width <n> | height <n> | ms <latency> | react <ms> | color on/off")
     end
 end
 
@@ -52,6 +71,9 @@ local defaults = {
     point = "CENTER",
     x = 0,
     y = 0,
+    ms = 0,
+    react = 0,
+    colors = true,
 }
 
 local function InitDB()
@@ -162,15 +184,29 @@ SS:SetScript("OnUpdate", function(self,elapsed)
     end
 
     local remaining = SS.timer / SS.timerMax
-    if remaining < 0 then remaining = 0 end
-    if remaining > 1 then remaining = 1 end
 
-    if remaining >= 0.85 then
-        SS.bar:SetColorTexture(0.0,1.0,0.0,1.0)
-    elseif remaining >= 0.50 then
-        SS.bar:SetColorTexture(1.0,0.9,0.0,1.0)
+    local latency = (SimpleSwingDB.ms or 0) / 1000
+    local reaction = (SimpleSwingDB.react or 0) / 1000
+    local totalOffset = latency + reaction
+    local offsetPercent = totalOffset / SS.timerMax
+
+    if not SimpleSwingDB.colors then
+        SS.bar:SetColorTexture(0.2,0.6,1.0,0.6)
     else
-        SS.bar:SetColorTexture(1.0,0.0,0.0,1.0)
+        -- FIX: if we're not near wrap, use ORIGINAL thresholds
+        if remaining > 0.85 then
+            SS.bar:SetColorTexture(0.0,1.0,0.0,1.0)
+
+        elseif remaining > 0.50 then
+            SS.bar:SetColorTexture(1.0,0.9,0.0,1.0)
+
+        elseif remaining > offsetPercent then
+            SS.bar:SetColorTexture(1.0,0.0,0.0,1.0)
+
+        else
+            -- only apply latency logic at END of swing
+            SS.bar:SetColorTexture(0.0,1.0,0.0,1.0)
+        end
     end
 
     local progress = 1 - remaining
