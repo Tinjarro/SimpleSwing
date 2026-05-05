@@ -1,0 +1,9 @@
+## Interface: 30300
+## Title: SimpleSwing
+## Notes: Slam-aware swing timer for 3.3.5
+## Author: You
+## Version: 1.0
+
+## SavedVariables: SimpleSwingDB
+
+SimpleSwing.lua

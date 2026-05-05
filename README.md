@@ -1,0 +1,1 @@
+/ss for simple menu. Included is the original Slam sound that you can use Weak Auras to go off when it lands since the Epoch Devs decided Slam should sound like a wet noodle. Right now only works for MH/2h. Have not had time to try anything else yet.
