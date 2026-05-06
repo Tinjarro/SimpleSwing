@@ -1,5 +1,4 @@
--- SimpleSwing
-
+-- SimpleSwing (Stable MH/OH classification, no debug)
 
 if not SimpleSwingDB then SimpleSwingDB = {} end
 
@@ -104,15 +103,39 @@ SS.swinging = false
 
 local playerGUID
 
+-- classification state
+local lastMH = 0
+local lastOH = 0
+local lastWasMH = true
+local seenFirst = false
+
+local prevMHSpeed = 0
+local prevOHSpeed = 0
+
 local function UpdateSpeed()
-    local mh = UnitAttackSpeed("player")
+    local mh, oh = UnitAttackSpeed("player")
     if mh and mh > 0 then SS.timerMax = mh end
+    return mh or 0, oh or 0
 end
 
-local function ResetSwing()
+local function ResetModel()
+    lastMH = 0
+    lastOH = 0
+    lastWasMH = true
+    seenFirst = false
+end
+
+local function ResetMH()
     UpdateSpeed()
     SS.timer = SS.timerMax
     SS.swinging = true
+    lastMH = GetTime()
+    lastWasMH = true
+end
+
+local function MarkOH()
+    lastOH = GetTime()
+    lastWasMH = false
 end
 
 SS:RegisterEvent("PLAYER_LOGIN")
@@ -131,7 +154,8 @@ SS:SetScript("OnEvent", function(self,event,...)
         SS:EnableMouse(not SimpleSwingDB.locked)
 
         playerGUID = UnitGUID("player")
-        UpdateSpeed()
+        local mh, oh = UpdateSpeed()
+        prevMHSpeed, prevOHSpeed = mh, oh
 
         print("SimpleSwing loaded")
         return
@@ -140,7 +164,8 @@ SS:SetScript("OnEvent", function(self,event,...)
     if event == "UNIT_SPELLCAST_SUCCEEDED" then
         local unit, spellName = ...
         if unit == "player" and spellName == "Slam" then
-            ResetSwing()
+            seenFirst = true
+            ResetMH()
             return
         end
     end
@@ -149,11 +174,58 @@ SS:SetScript("OnEvent", function(self,event,...)
         local _, subevent, sourceGUID,
               _, _, _, destGUID, _, _, missType = ...
 
-        if sourceGUID == playerGUID then
-            if subevent == "SWING_DAMAGE" or subevent == "SWING_MISSED" then
-                ResetSwing()
+        if sourceGUID == playerGUID and (subevent == "SWING_DAMAGE" or subevent == "SWING_MISSED") then
+
+            local now = GetTime()
+            local mh, oh = UpdateSpeed()
+
+            -- detect weapon swap (speed change)
+            if mh ~= prevMHSpeed or oh ~= prevOHSpeed then
+                ResetModel()
+                prevMHSpeed, prevOHSpeed = mh, oh
+            end
+
+            -- no offhand
+            if not oh or oh <= 0 then
+                ResetMH()
                 return
             end
+
+            -- first swing
+            if not seenFirst or lastMH == 0 then
+                seenFirst = true
+                ResetMH()
+                return
+            end
+
+            local dMH = now - lastMH
+            local dOH = lastOH > 0 and (now - lastOH) or 999
+
+            -- EARLY window: force OH
+            if dMH < (mh * 0.45) then
+                MarkOH()
+                return
+            end
+
+            local mhDiff = math.abs(dMH - mh)
+            local ohDiff = math.abs(dOH - oh)
+
+            -- BIAS: alternate hands unless clearly wrong
+            if lastWasMH then
+                if ohDiff < (mhDiff * 1.25) then
+                    MarkOH()
+                else
+                    ResetMH()
+                end
+            else
+                if mhDiff < (ohDiff * 1.25) then
+                    ResetMH()
+                else
+                    MarkOH()
+                end
+            end
+
+            return
         end
 
         if destGUID == playerGUID and subevent == "SWING_MISSED" and missType == "PARRY" then
@@ -191,20 +263,15 @@ SS:SetScript("OnUpdate", function(self,elapsed)
     local offsetPercent = totalOffset / SS.timerMax
 
     if not SimpleSwingDB.colors then
-        SS.bar:SetColorTexture(0.2,0.6,1.0,0.6)
+        SS.bar:SetColorTexture(0.2,0.6,1.0,0.8)
     else
-        -- FIX: if we're not near wrap, use ORIGINAL thresholds
         if remaining > 0.85 then
             SS.bar:SetColorTexture(0.0,1.0,0.0,1.0)
-
         elseif remaining > 0.50 then
             SS.bar:SetColorTexture(1.0,0.9,0.0,1.0)
-
         elseif remaining > offsetPercent then
             SS.bar:SetColorTexture(1.0,0.0,0.0,1.0)
-
         else
-            -- only apply latency logic at END of swing
             SS.bar:SetColorTexture(0.0,1.0,0.0,1.0)
         end
     end
