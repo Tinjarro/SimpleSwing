@@ -17,4 +17,6 @@ WeakAura (for Slam sound):
 Notes:
 - Includes original Slam1.wav sound.
 - Sound triggers on Slam using WeakAura.
-- Currently set up for MH/2H use.
+- Set your latency which will adjust the time 
+- Set your reaction time to change how early it starts to show green
+- DW works, but is a little funky at times, but mostly works.
